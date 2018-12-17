@@ -2,16 +2,22 @@
 # DATA CLEAN 
 #########################################
 rm(list = ls())
-library(foreign)
 
 #####################################################
 # Patient list (self-reported diabetes diagnosis)
 #####################################################
-d <- read.dta("data/patient_list.dta")
+file_location <- "C:/Users/janet/Desktop/2017_data/"
+d <- readRDS(paste0(file_location, "patient_list.rds"))
+
 str(d)
+
+# Format NA
+d$death_date <- gsub(pattern = "      .", replacement = NA, x = d$death_date)
+d$first_dm_diag_date <- gsub(pattern = "      .", replacement = NA, x = d$first_dm_diag_date)
+
 if(any(is.na(d))) {
-  print("MISSING DATA")
-  colSums(is.na(d))
+    print("MISSING DATA")
+    colSums(is.na(d))
 }
 if(anyDuplicated(d$serial_no)) stop("Duplicate serial_no")
 
@@ -19,6 +25,7 @@ names(d)[names(d) %in% "year_of_birth"] <- "dob"
 names(d)[names(d) %in% "first_dm_diag_date"] <- "self.reported"
 names(d)[names(d) %in% "death_date"] <- "death.date"
 
+# Format dates
 head(d[ ,c("self.reported", "death.date")]) 
 FunDate15 <- function(x) {
   # Replace missing date as 15
@@ -37,16 +44,18 @@ d$female[d$female == "M"] <- FALSE
 d$female[d$female == "U"] <- NA
 d$female <- as.logical(d$female)
 table(d$female, exclude = NULL)
+#FALSE (male)   TRUE (female)
+#889249         958542 
 
 # status: code unclassified as missing
-status <- c("cssa_status", "ha_staff", "ha_dep", "ha_retir", "cs_staff", "cs_dep", "cs_pen", "ramp", "nahc")
+status <- c("CSSA_status", "HA_staff", "HA_dep", "HA_retir", "CS_staff", "CS_dep", "CS_pen", "ramp", "nahc")
 sapply(d[, c(status)], function (x) table (x, exclude = NULL))
 
 FunUnclassified <- function (x) {
-  x <- replace (x, x == "U", NA)
-  x <- replace (x, x == "Y", TRUE)
-  x <- replace (x, x == "N", FALSE)
-  as.logical (x)
+    x <- replace (x, x == "U", NA)
+    x <- replace (x, x == "Y", TRUE)
+    x <- replace (x, x == "N", FALSE)
+    as.logical (x)
 }
 
 d[, c(status)] <- sapply(d[, c(status)], function (x) FunUnclassified(x)) 
@@ -55,19 +64,17 @@ d[, c(status)] <- sapply(d[, c(status)], function (x) FunUnclassified(x))
 stopifnot(any(!is.na(d$district)))
 table(d$district, exclude = NULL) # no unclassified or missing
 d$district <- as.factor(d$district)
-
+    
 # smoking
 table(d$curr_smoking_status, exclude = NULL) # More ex-smokers than smokers?
 # HA coding for smoking (1 = smoker, 2 = ex-smoker, 3 = never smoker)
 # code unknown status ("9") as = NA
 d$smoking <- as.factor(d$curr_smoking_status)
-table(d$smoking, exclude = NULL)
 levels (d$smoking) <- c("Yes", "Ex", "Non-smoker", NA)
 table(d$smoking, exclude = NULL)
 d$curr_smoking_status <- NULL
 
-patient <- d
-save(patient, file = "Rdata/patient.Rdata")
+saveRDS(d, paste0(file_location, "sorted/patient_list.rds"))
 
 # Exploratory analysis
 colSums(is.na(d))
@@ -77,9 +84,7 @@ table(d$death.yr)
 d$death.age <- ifelse(is.na(d$death.yr), NA, d$death.yr - d$dob)
 
 FunAgeCat <- function(x, lower = 0, upper = 85, by = 5, sep = "-", above.char = "+") {
- 
-# Cut age into age categories (5-year strata)
-# original
+  # Cut age into age categories (5-year strata)
   labs <- c(paste(seq(lower, upper - by, by = by), 
                   seq(lower + by - 1, upper - 1, by = by), sep = sep),
             paste(upper, above.char, sep = "")) 
@@ -94,42 +99,35 @@ deaths <- table(d$death.agecat, d$death.yr)
 deaths <- rbind(deaths, colSums(deaths))
 deaths
 
-###
-
-# Janet's codes from "10 age and sex standardisation" - modify later
-__ <- mutate(__, group = cut(__, breaks=c(seq(from = 14, to = 84, by = 5), Inf), labels=c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-84", "85+"))) %>% as.data.table
-df <- df[, .(nv_50k = mean(nv_50k), nv_100k = mean(nv_100k), nv_200k = mean(nv_200k), diff.spend = mean(diff.spend.mod)), keyby = .(group, female)]
-
-###
-
 #####################################################
 # CLINICAL DATASETS
 #####################################################
 rm(list = setdiff(ls(), lsf.str()))
-load("Rdata/patient.Rdata") # line 70 above
-library(foreign); library(ggplot2)
-
+file_location <- "C:/Users/janet/Desktop/2017_data/"
+patient <- readRDS(paste0(file_location, "sorted/patient_list.rds"))
+library(ggplot2)
+  
 FunDeaths <- function (d) {
-  # observations after death
-  if (any(d$ref_date > d$death.date & !is.na(d$death.date), na.rm = T)) {
+# observations after death
+if (any(d$ref_date > d$death.date & !is.na(d$death.date), na.rm = T)) {
     print("observations after death")
     print(sum(d$ref_date > d$death.date & !is.na(d$death.date)))
     d[d$ref_date <= d$death.date | is.na(d$death.date), ]
-  } else { 
+    } else { 
     d
-  } 
+    } 
 }
 
 FunBirth <- function (d) {
-  # observations before birth
-  d$yr <- format(d$ref_date, "%Y")
-  if (any(d$yr < d$dob, na.rm = T)) {
+# observations before birth
+    d$yr <- format(d$ref_date, "%Y")
+if (any(d$yr < d$dob, na.rm = T)) {
     print("observations before birth")
     print(sum(d$yr < d$dob))
     d[d$yr >= d$dob, ]
-  } else { 
+    } else { 
     d
-  } 
+    } 
 }
 
 FunStat <- function(x){
@@ -168,13 +166,13 @@ FunClean <- function (label, lower, upper){
   print("CLEANED")
   print(summary(d)); cat("\n")
   print(paste("Mean (sd)", round(mean(d[, c(label)], 2)), "(", 
-              round(sd(d[, c(label)]), 2), ")", sep = ""))
+      round(sd(d[, c(label)]), 2), ")", sep = ""))
   d
 }
 
 # BMI range (FAMILY cohort): 15-150
 #####################################################
-d <- read.dta("data/bmi.dta")
+d <- readRDS(paste0(file_location, "bmi.rds"))
 colSums(is.na(d))
 
 # check missing
@@ -186,18 +184,43 @@ d$b <- with(d, weight/(height)^2)
 d$dif <- d$bmi - d$b
 summary(d$dif)
 d[d$dif > 0.1, ]
-d$bmi[!is.na(d$b)] <- round(d$b[!is.na(d$b)], 2)
+d$bmi[!is.na(d$b)] <- round(d$b[!is.na(d$b)], digits = 2) #replace with calculated bmi corrected to nearest 2 d.p.
+d[is.na(d$b),] #two observations with NA height/weight
 
 d <- d[, c("serial_no", "ref_date", "bmi")]
 bmi <- FunClean("bmi", lower = 15, upper = 150)
-save(bmi, file = "Rdata/bmi_clean.Rdata")
-rm(list = setdiff(ls(), c(lsf.str(), "patient")))
+saveRDS(bmi, paste0(file_location, "sorted/bmi.rds"))
+#$Summary
+#Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+#0.0      22.8      25.1      27.5      27.9 1088000.0 
 
+#$Mean_sd
+#"25(1021.91)"
+
+#$Percentile
+#0.001%     0.01%      0.1%        1%       10%       90%       99%     99.9%    99.99% 
+#0.3600    1.2000   10.7000   17.0000   20.6700   30.7600   37.7700   46.9300  508.7667 
+#99.999 % 
+#2937.7095 
+
+#"CLEANED"
+#serial_no            ref_date               bmi        
+#Length:7080226     Min.   :2006-01-15   Min.   : 15.00  
+#Class :character   1st Qu.:2012-04-15   1st Qu.: 22.77  
+#Mode  :character   Median :2014-08-15   Median : 25.16  
+#Mean   :2014-01-24   Mean   : 25.55  
+#3rd Qu.:2016-06-15   3rd Qu.: 27.85  
+#Max.   :2017-12-15   Max.   :149.45  
+
+#"Mean (sd)25(4.19)"
+
+rm(list = setdiff(ls(), c(lsf.str(), "patient")))
+   
 # SBP range (FAMILY cohort): 80-230
 # DBP range: 20-200
 # MAP range: 40-210
 #######################################################
-d <- read.dta("data/bp.dta")
+d <- readRDS(paste0(file_location, "bp.rds"))
 colSums(is.na(d))
 
 names (d)[names(d)%in% "systolic_bp"] <- "sbp"
@@ -216,7 +239,7 @@ bp$map <- with(bp, sbp/3 + (dbp * 2/3))
 d <- bp[, c("serial_no", "ref_date", "map")]
 map <- FunClean("map", lower = 40, upper = 210)
 
-save(sbp, dbp, map, file = "Rdata/bp_clean.Rdata")
+save(sbp, dbp, map, paste0(file_location, "sorted/bp.Rdata"))
 rm(list = setdiff(ls(), c(lsf.str(), "patient")))
 
 # HbA1c range: NGSP/DCCT >3% (IFCC 39 mmol/mol), <24% (238.8 mmol/mol)
@@ -500,3 +523,4 @@ d <- d[, c("serial_no", "ref_date", "wbc")]
 wbc <- FunClean("wbc", lower = 0.1, upper = 250)
 save(wbc, file = "Rdata/wbc_clean.Rdata")
 rm(list = setdiff(ls(), c(lsf.str(), "patient")))
+
