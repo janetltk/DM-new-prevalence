@@ -190,31 +190,8 @@ d[is.na(d$b),] #two observations with NA height/weight
 d <- d[, c("serial_no", "ref_date", "bmi")]
 bmi <- FunClean("bmi", lower = 15, upper = 150)
 saveRDS(bmi, paste0(file_location, "sorted/bmi.rds"))
-#$Summary
-#Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
-#0.0      22.8      25.1      27.5      27.9 1088000.0 
 
-#$Mean_sd
-#"25(1021.91)"
-
-#$Percentile
-#0.001%     0.01%      0.1%        1%       10%       90%       99%     99.9%    99.99% 
-#0.3600    1.2000   10.7000   17.0000   20.6700   30.7600   37.7700   46.9300  508.7667 
-#99.999 % 
-#2937.7095 
-
-#"CLEANED"
-#serial_no            ref_date               bmi        
-#Length:7080226     Min.   :2006-01-15   Min.   : 15.00  
-#Class :character   1st Qu.:2012-04-15   1st Qu.: 22.77  
-#Mode  :character   Median :2014-08-15   Median : 25.16  
-#Mean   :2014-01-24   Mean   : 25.55  
-#3rd Qu.:2016-06-15   3rd Qu.: 27.85  
-#Max.   :2017-12-15   Max.   :149.45  
-
-#"Mean (sd)25(4.19)"
-
-rm(list = setdiff(ls(), c(lsf.str(), "patient")))
+rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
    
 # SBP range (FAMILY cohort): 80-230
 # DBP range: 20-200
@@ -239,8 +216,8 @@ bp$map <- with(bp, sbp/3 + (dbp * 2/3))
 d <- bp[, c("serial_no", "ref_date", "map")]
 map <- FunClean("map", lower = 40, upper = 210)
 
-save(sbp, dbp, map, paste0(file_location, "sorted/bp.Rdata"))
-rm(list = setdiff(ls(), c(lsf.str(), "patient")))
+save(sbp, dbp, map, file = paste0(file_location, "sorted/bp.Rdata"))
+rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
 
 # HbA1c range: NGSP/DCCT >3% (IFCC 39 mmol/mol), <24% (238.8 mmol/mol)
 ########################################################
@@ -248,17 +225,18 @@ rm(list = setdiff(ls(), c(lsf.str(), "patient")))
 # HbA1c of 24% = estimated Average Blood Glu of 35.7 mmol/L
 # ref: http://professional.diabetes.org/GlucoseCalculator.aspx
 # NGSP/IFCC conversion: http://www.ngsp.org/ifccngsp.asp
-d <- read.dta("data/hba1c.dta")
-colSums(is.na(d))
-table(d$test_unit, exclude = NULL)
+d <- readRDS(paste0(file_location, "hba1c.rds"))
+colSums(is.na(d)) #7152 NA hba1c
+d <- na.omit(d)
+table(d$test_unit, exclude = NULL) #hba1c data in 3 units: %, %Hb and mmol/mol
 
 tapply(d$hba1c, d$test_unit, summary)
 p <- ggplot(d, aes(x=hba1c, group=test_unit, colour=test_unit)) 
 p + geom_density(aes(fill=test_unit), alpha=0.3)
 p + geom_density() + scale_x_continuous(limits = c(0, 100))
 
-d$ngsp <- ifelse(d$test_unit == "%" | d$test_unit == "% Hb", d$hba1c, (0.09148 * d$hba1c) + 2.152)
-d$ifcc <- ifelse(d$test_unit == "mmol/mol", d$hba1c, (d$hba1c - 2.152) / 0.09148)
+d$ngsp <- ifelse(d$test_unit == "%" | d$test_unit == "% Hb", d$hba1c, (0.09148 * d$hba1c) + 2.152) #National Glycohemoglobin Standardization Program - http://www.ngsp.org/ifcc.asp
+d$ifcc <- ifelse(d$test_unit == "mmol/mol", d$hba1c, (d$hba1c - 2.152) / 0.09148) #International Federation of Clinical Chemistry Working Group
 head(d[d$test_unit == "%", ])
 head(d[d$test_unit == "% Hb", ])
 head(d[d$test_unit == "mmol/mol", ])
@@ -269,45 +247,35 @@ p + geom_density() + scale_x_continuous(limits = c(0, 10))
 
 hba1c <- FunClean("ngsp", lower = 3, upper = 24)
 
-# both units (% and mmol/mol) used from 2011
+# see pattern of unit usage from 2006 to 2017
 with(hba1c, table(format(ref_date, "%Y"), test_unit))
-with(hba1c[format(hba1c$ref_date, "%Y") == 2011,], table(ref_date, test_unit))
+with(hba1c[format(hba1c$ref_date, "%Y") == 2011,], table(ref_date, test_unit)) #Only %/%Hb were used before 5/2011. mmol/m was used since 5/2011. 
 
-# 1 decimal place
-head(hba1c[hba1c$test_unit == "%", ]) 
-head(hba1c[hba1c$test_unit == "mmol/mol", ]) 
+# round all hba1c readings to 1 decimal place
+head(hba1c[hba1c$test_unit == "%", ]); head(hba1c[hba1c$test_unit == "mmol/mol", ]) 
 hba1c[, c("ngsp", "ifcc")] <- round(hba1c[, c("ngsp", "ifcc")], 1)
-
-# 6% == 42 mmol/mol
-head(hba1c[hba1c$test_unit == "%" & hba1c$hba1c == 6, ])
-head(hba1c[hba1c$test_unit == "% Hb" & hba1c$hba1c == 6, ])
-head(hba1c[hba1c$test_unit == "mmol/mol" & hba1c$hba1c == 42.0, ])
 
 hba1c$hba1c <- NULL
 hba1c$test_unit <- NULL
 names(hba1c)[names(hba1c) == "ngsp"] <- "hba1c"
 
-save(hba1c, file = "Rdata/hba1c_clean.Rdata")
-rm(list = setdiff(ls(), c(lsf.str(), "patient")))
+saveRDS(hba1c, paste0(file_location, "sorted/hba1c.rds"))
+rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
 
 # TC >0.1 & <25 mmol/L
 # HDL >0.1 & <5 mmol/L
 # LDL >0.1 & <20 mmol/L
 # Total Cholesterol: HDL Cholesterol ratio <1.5, >20 
 ########################################################
-d <- read.dta("data/cholesterol.dta")
+d <- readRDS(paste0(file_location, "cholesterol.rds"))
 colSums(is.na(d))
-table(d$test_unit_totclt, exclude = NULL)
-table(d$test_unit_hdl, exclude = NULL)
-table(d$test_unit_ldl, exclude = NULL)
+table(c(d$test_unit_totclt, d$test_unit_hdl, d$test_unit_totclt)) #2: mmol/l, mmol/L(same)
 
-names (d)[names(d)%in% "total_clt"] <- "tc"
-names (d)[names(d)%in% "hdl_c"] <- "hdl"
-names (d)[names(d)%in% "ldl_c"] <- "ldl"
-
-tapply(d$tc, d$test_unit_totclt, function (x) summary(x, na.rm = T))
-tapply(d$hdl, d$test_unit_hdl, function (x) summary(x, na.rm = T))
-tapply(d$ldl, d$test_unit_ldl, function (x) summary(x, na.rm = T))
+names(d) <- c("serial_no", "tc", "unit_tc", "hdl", "unit_hdl", "ldl", "unit_ldl", "ref_date")
+  
+tapply(d$tc, d$unit_tc, function (x) summary(x, na.rm = T))
+tapply(d$hdl, d$unit_hdl, function (x) summary(x, na.rm = T))
+tapply(d$ldl, d$unit_ldl, function (x) summary(x, na.rm = T)) #same distribution of values of mmol/l and mmol/U units
 chol <- d
 
 d <- na.omit(chol[, c("serial_no", "ref_date", "tc")])
@@ -319,24 +287,26 @@ hdl <- FunClean("hdl", lower = 0.1, upper = 5)
 d <- na.omit(chol[, c("serial_no", "ref_date", "ldl")])
 ldl <- FunClean("ldl", lower = 0.1, upper = 20) 
 
-chol$lr <- with(chol, round(tc/hdl, 3))
+chol$lr <- with(chol, round(tc/hdl, 3)) #cholesterol ratio
 d <- na.omit(chol[, c("serial_no", "ref_date", "lr")])
 ggplot(d, aes(lr)) + geom_density() + scale_x_continuous(limits = c(0, 50))
 lr <- FunClean("lr", lower = 1.5, upper = 20)
 
-chol$nhdl <- with(chol, tc - hdl)
+chol$nhdl <- with(chol, tc - hdl) #non-HDL
 summary(chol$nhdl)
 d <- na.omit(chol[, c("serial_no", "ref_date", "nhdl")])
 ggplot(d, aes(nhdl)) + geom_density() + scale_x_continuous(limits = c(0, 50))
 nhdl <- FunClean("nhdl", lower = 0.01, upper = 25)
 
-save(tc, hdl, ldl, lr, nhdl, file = "Rdata/cholesterol_clean.Rdata")
-rm(list = setdiff(ls(), c(lsf.str(), "patient")))
+save(tc, hdl, ldl, lr, nhdl, file = paste0(file_location, "sorted/cholesterol.Rdata"))
+
+rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
 
 ########################################################
 # ACR range: >0, <1000
 ########################################################
-d <- read.dta("data/urine_acr.dta")
+d <- readRDS(paste0(file_location, "urine_acr.rds"))
+
 colSums(is.na(d))
 table(d$test_unit, exclude = NULL)
 
@@ -346,13 +316,14 @@ p + geom_density(aes(fill=test_unit), alpha=0.3)
 p + geom_density() + scale_x_continuous(limits = c(0, 10))
 
 urine_acr <- FunClean("urine_acr", lower = 0.0001, upper = 1000)
-save(urine_acr, file = "Rdata/urine_acr_clean.Rdata")
-rm(list = setdiff(ls(), c(lsf.str(), "patient")))
+
+saveRDS(urine_acr, paste0(file_location, "sorted/urine_acr.rds"))
+rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
 
 ########################################################
 # Urine_alb range: 0-5000 mg/24h and 0-500 mg/L
 ########################################################
-d <- read.dta("data/urine_alb.dta")
+d <- readRDS(paste0(file_location, "urine_alb.rds"))
 colSums(is.na(d))
 table(d$test_unit, exclude = NULL)
 
@@ -384,8 +355,8 @@ d <- d[, c("serial_no", "ref_date", "urine_alb")]
 urine_alb_spot <- FunClean("urine_alb", lower = 0, upper = 500)
 names(urine_alb_spot)[3] <- "urine_alb_spot"
 
-save(urine_alb_24h, urine_alb_spot, file = "Rdata/urine_alb_clean.Rdata")
-rm(list = setdiff(ls(), c(lsf.str(), "patient")))
+save(urine_alb_24h, urine_alb_spot, file = paste0(file_location, "sorted/urine_alb.Rdata"))
+rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
 
 ########################################################
 # Haemoglobin range: 4-20 g/dL
