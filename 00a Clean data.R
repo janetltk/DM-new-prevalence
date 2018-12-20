@@ -308,14 +308,15 @@ rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
 d <- readRDS(paste0(file_location, "urine_acr.rds"))
 
 colSums(is.na(d))
-table(d$test_unit, exclude = NULL)
+table(d$test_unit, exclude = NULL) # mg/mmol, mg/mmol Cr, mg/mmol Creat (same)
 
 tapply(d$urine_acr, d$test_unit, summary)
 p <- ggplot(d, aes(x=urine_acr, group=test_unit, colour=test_unit)) 
 p + geom_density(aes(fill=test_unit), alpha=0.3)
 p + geom_density() + scale_x_continuous(limits = c(0, 10))
 
-urine_acr <- FunClean("urine_acr", lower = 0.0001, upper = 1000)
+d <- na.omit(d)
+urine_acr <- FunClean("urine_acr", lower = 0.00001, upper = 1000)
 
 saveRDS(urine_acr, paste0(file_location, "sorted/urine_acr.rds"))
 rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
@@ -324,15 +325,18 @@ rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
 # Urine_alb range: 0-5000 mg/24h and 0-500 mg/L
 ########################################################
 d <- readRDS(paste0(file_location, "urine_alb.rds"))
-colSums(is.na(d))
+colSums(is.na(d)) #no NA
 table(d$test_unit, exclude = NULL)
+#mg/24 hr,   mg/24h,     mg/d,   mg/day,    mg/dL,     mg/l,     mg/L 
 
-tapply(d$urine_alb, d$test_unit, summary)
+tapply(d$urine_alb, d$test_unit, summary) 
+
 p <- ggplot(d, aes(x=urine_alb, group=test_unit, colour=test_unit)) 
 p + geom_density(aes(fill=test_unit), alpha=0.3)
 p + geom_density() + scale_x_continuous(limits = c(0, 500))
 
 a <- d
+
 # 24h urine albumin (mg/24h)
 d <- a[a$test_unit == "mg/24h" | a$test_unit == "mg/24 hr" | a$test_unit == "mg/d" | a$test_unit == "mg/day",]
 tapply(d$urine_alb, d$test_unit, summary)
