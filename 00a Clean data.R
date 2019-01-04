@@ -103,6 +103,7 @@ deaths
 # CLINICAL DATASETS
 #####################################################
 rm(list = setdiff(ls(), lsf.str()))
+file_location <- "C:/Users/janet/Desktop/2017_data/"
 patient <- readRDS(paste0(file_location, "sorted/patient_list.rds"))
 library(ggplot2)
   
@@ -364,8 +365,8 @@ rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
 ########################################################
 # Haemoglobin range: 4-20 g/dL
 ########################################################
-d <- readRDS(paste0(file_location, "haemoglobin.rds"))
-colSums(is.na(d)) #no NA
+d <- read.dta("data/haemoglobin.dta")
+colSums(is.na(d))
 table(d$test_unit, exclude = NULL)
 
 tapply(d$haemoglobin, d$test_unit, summary)
@@ -380,59 +381,52 @@ d$haemoglobin[d$test_unit == "g/L"] <- d$haemoglobin[d$test_unit == "g/L"] * 0.1
 d$haemoglobin[d$test_unit == "mg/L"] <- d$haemoglobin[d$test_unit == "mg/L"] * 0.0001
 
 tapply(d$haemoglobin, d$test_unit, summary)
-# not plausible -> remove 2195 values (0.008%)
+# not plausible -> remove 992 values (0.006%)
 d <- d[d$test_unit != "g/L" & d$test_unit != "mg/L", c("serial_no", "ref_date", "haemoglobin")]
 haemoglobin <- FunClean("haemoglobin", lower = 4, upper = 20)
-
-saveRDS(haemoglobin, paste0(file_location, "sorted/haemoglobin.rds"))
-rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
+save(haemoglobin, file = "Rdata/haemoglobin_clean.Rdata")
+rm(list = setdiff(ls(), c(lsf.str(), "patient")))
 
 ########################################################
 # Serum Creatinine & eGFR Chinese
 # Remove creatinine 0.1 to 2000 micromoles/L
 ########################################################
-d <- readRDS(paste0(file_location, "creatinine.rds"))
-colSums(is.na(d)) #12449 NAs
-table(d$test_unit, exclude = NULL) ## umol/L,   umol/l,   umol/L, umol/L #
+d <- read.dta("data/creatinine.dta")
+colSums(is.na(d))
+table(d$test_unit, exclude = NULL)
 
-tapply(d$creatinine, d$test_unit, summary) #similar distribution, can assume they are same units
+tapply(d$creatinine, d$test_unit, summary)
+p <- ggplot(d, aes(x=creatinine, group=test_unit, colour=test_unit)) 
+p + geom_density(aes(fill=test_unit), alpha=0.3)
+p + geom_density() + scale_x_continuous(limits = c(0, 500))
 
-d <- na.omit(d) #remove all NAs
 d <- d[, c("serial_no", "ref_date", "creatinine")]
 d <- FunClean("creatinine", lower = 0.1, upper = 2000)
 
-# merge with patient basic info to get eGRF
+# eGRF
 d <- merge(d, patient[, c("serial_no", "female", "dob")], by = "serial_no")
 d$age <- as.numeric(format(d$ref_date, "%Y")) - d$dob
 
 # MDRD formula
-d$egfr_mdrd <- with(d, 186 * ((creatinine * 0.0113) ^ -1.154) * (age ^ -0.203) * (.742 ^ female))
+d$egfr_mdrd <- with(d, 186 * ((creatinine * 0.011) ^ -1.154) * (age ^ -0.203) * (.742 ^ female))
 
 # MDRD formula for Chinese (creatinine in umol/L)
 # doi: 10.1681/ASN.2006040368
 d$egfr_chinese <- d$egfr_mdrd * 1.227
 
-# CKD-EPI formula
-# CKD-EPI is also better than MDRD in mortality prediction in Chinese (http://doi.org/10.1016/j.diabres.2017.01.010)
-library(nephro)
-str(d) #convert all variables to numeric vectors
-d$sex <- 1 - as.numeric(d$female) #in the function, male are coded as 1 and female as 0 
-d$ethnicity <- 0 #assume all individuals are non-Black
-d$creatinine_mg <- d$creatinine *0.0113
-d$egfr_ckdepi <- CKDEpi.creat(creatinine = d$creatinine_mg, sex = d$sex, age = d$age, ethnicity = d$ethnicity)
-
 colSums(is.na(d))
 FunStat(na.omit(d$egfr_mdrd))
-FunStat(na.omit(d$egfr_ckdepi))
 summary(d[d$egfr_mdrd==Inf,]) # age == 0
 length(unique(d$serial_no))
-# remove if age = 0
+# rm if age = 0
 d <- d[d$age > 0,] 
+FunStat(na.omit(d$egfr_mdrd))
+length(unique(d$serial_no))
 
-creatinine <- d[, c("serial_no", "ref_date", "creatinine", "egfr_chinese", "egfr_mdrd", "egfr_ckdepi")]
+creatinine <- d[, c("serial_no", "ref_date", "creatinine", "egfr_chinese", "egfr_mdrd")]
 summary(creatinine)
-save(creatinine, file = paste0(file_location, "sorted/creatinine.Rdata"))
-rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
+save(creatinine, file = "Rdata/creatinine_clean.Rdata")
+rm(list = setdiff(ls(), c(lsf.str(), "patient")))
 
 ########################################################
 
@@ -441,52 +435,50 @@ rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
 ########################################################
 # egfr range: 0.0001-1000 mL/min/1.73 m^2
 ########################################################
-d <- readRDS(paste0(file_location, "egfr.rds"))
-colSums(is.na(d)) #no NA
+d <- read.dta("data/egfr.dta")
+colSums(is.na(d))
 table(d$test_unit, exclude = NULL)
 
-tapply(d$egfr, d$test_unit, summary) #all same unit
+tapply(d$egfr, d$test_unit, summary)
 p <- ggplot(d, aes(x=egfr, group=test_unit, colour=test_unit)) 
 p + geom_density(aes(fill=test_unit), alpha=0.3)
 p + geom_density() + scale_x_continuous(limits = c(0, 500))
 
 d <- d[, c("serial_no", "ref_date", "egfr")] 
 egfr <- FunClean("egfr", lower = 0.0001, upper = max(d$egfr))
-
-saveRDS(egfr, paste0(file_location, "sorted/egfr.rds"))
-rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
+save(egfr, file = "Rdata/egfr_clean.Rdata")
+rm(list = setdiff(ls(), c(lsf.str(), "patient")))
 
 
 ########################################################
 # Pulse range: 25-200?
 ########################################################
-d <- readRDS(paste0(file_location, "pulse.rds"))
+d <- read.dta("data/pulse.dta")
 colSums(is.na(d))
 
 ggplot(d, aes(pulse)) + geom_density()
+d <- d[, c("serial_no", "ref_date", "pulse")] 
 pulse <- FunClean("pulse", lower = 25, upper = 200)
-saveRDS(pulse, paste0(file_location, "sorted/pulse.rds"))
-rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
+save(pulse, file = "Rdata/pulse_clean.Rdata")
+rm(list = setdiff(ls(), c(lsf.str(), "patient")))
 
 ########################################################
 # Triglyceride range: 0-100 mmol/L
 ########################################################
-d <- readRDS(paste0(file_location, "triglyceride.rds"))
-colSums(is.na(d)) #784 NAs
-table(d$test_unit, exclude = NULL) #all are mmol/L
+d <- read.dta("data/triglyceride.dta")
+colSums(is.na(d))
+table(d$test_unit, exclude = NULL)
 
 ggplot(d, aes(triglyceride)) + geom_density()
-d <- na.omit(d)
 d <- d[, c("serial_no", "ref_date", "triglyceride")] 
-
 triglyceride <- FunClean("triglyceride", lower = 0.1, upper = 100)
-saveRDS(triglyceride, paste0(file_location, "sorted/triglyceride.rds"))
-rm(list = setdiff(ls(), c(lsf.str(), "patient", "file_location")))
+save(triglyceride, file = "Rdata/triglyceride_clean.Rdata")
+rm(list = setdiff(ls(), c(lsf.str(), "patient")))
 
 ########################################################
 # WBC range: 0.1-250 x10^9/L
 ########################################################
-d <- readRDS(paste0(file_location, "wbc.rds"))
+d <- read.dta("data/wbc.dta")
 colSums(is.na(d))
 table(d$test_unit, exclude = NULL)
 
@@ -504,4 +496,6 @@ p + geom_density() + scale_x_continuous(limits = c(0, 250))
 
 d <- d[, c("serial_no", "ref_date", "wbc")] 
 wbc <- FunClean("wbc", lower = 0.1, upper = 250)
-saveRDS(wbc, paste0(file_location, "sorted/wbc.rds"))
+save(wbc, file = "Rdata/wbc_clean.Rdata")
+rm(list = setdiff(ls(), c(lsf.str(), "patient")))
+
