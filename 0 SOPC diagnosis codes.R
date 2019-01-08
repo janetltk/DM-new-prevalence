@@ -1,7 +1,8 @@
 
 # SOPC data:redundency among diagnosis codes
 ########################################################
-load("Rdata/sopc.Rdata")
+setwd("C:/Users/janet/Desktop/2017_data")
+sopc <- readRDS("sop_attn.rds")
 names(sopc)
 columns <- c("serial_no", "adate", paste0("diag_cd_0", 1:9), paste0("diag_cd_", 10:29))
 d <- sopc[, columns]
@@ -21,5 +22,5 @@ d$icd <- NULL
 format(object.size(d), "auto")
 
 sopc_dx_codes <- d
-save(sopc_dx_codes, file = "Rdata/sopc_dx_codes.Rdata")
+saveRDS(sopc_dx_codes, file = "sorted/sopc_dx_codes.rds")
 
