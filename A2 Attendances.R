@@ -131,21 +131,23 @@ rm(gopc, i); gc()
 ##################################################################
 # Merge attendance data
 ###################################################################
+library(dplyr)
 FunDmDate <- function (d) {
 # earliest date of attendance with diabetes code
   any(d$complication == 1 & d$dm == 0, na.rm = T)
   total <- length(unique(d$serial_no))
   print(paste(total, "patients with 250.x ICD-9 codes"))
   DT <- data.table(d)
-  nm <- deparse(substitute(d))
+  DT$adate <- as.Date(paste("15", DT$adate, sep = ""), "%d%b%Y")
   DT <- DT[, list(adate = min(adate), adate2 = sort(adate)[2], t1 = max(t1), complication = max(complication), dm = max(dm)), by = serial_no]
-  setnames(DT, "adate", paste0(nm, ".date"))
-  setnames(DT, "adate2", paste0(nm, ".date2"))
+  names(DT) <- c("serial_no", paste0(deparse(substitute(d)), ".date"), paste0(deparse(substitute(d)), ".date2"), "t1", "complication", "dm")
   if (any(is.na(DT))) colSums(is.na(DT))
   if (anyDuplicated(DT$serial_no)) stop("Duplicate serial_no")
   colSums(!is.na(d[, c("t1", "dm", "complication")]))
   data.frame(DT)
 }
+
+d$adate <- as.Date(paste("15", d$adate, sep = ""), "%d%b%Y")
 
 fst <- fst("diagnosis/dm_sopc.fst")
 print(fst)
@@ -157,7 +159,7 @@ colnames(sopc)[(names(sopc) == "appo_date")] <- "adate"
 colnames(sopc)[(names(sopc) == "type1")] <- "t1"
 colnames(sopc)[(names(sopc) == "cx")] <- "complication"
 
-aje.sopc <- sopc[, c("serial_no", "appo_date")]   # AJE SOPC
+aje.sopc <- sopc[, c("serial_no", "adate")]   # AJE SOPC
 sopc <- FunDmDate(sopc)
 # 69716 patients 
 
@@ -226,7 +228,7 @@ if (identical((dm$serial_no), (dm.type$serial_no))) {
 } else { stop ("Error: Serial numbers do not match")
 }
 
- names(d)
+names(d)
 length(unique(d$serial_no))
 #  patients with diabetes diagnosis codes (t1, t2, t3)
 # 658927
