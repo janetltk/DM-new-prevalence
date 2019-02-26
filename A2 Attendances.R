@@ -147,8 +147,6 @@ FunDmDate <- function (d) {
   data.frame(DT)
 }
 
-d$adate <- as.Date(paste("15", d$adate, sep = ""), "%d%b%Y")
-
 fst <- fst("diagnosis/dm_sopc.fst")
 print(fst)
 sopc <- fst[,]
@@ -159,8 +157,8 @@ colnames(sopc)[(names(sopc) == "appo_date")] <- "adate"
 colnames(sopc)[(names(sopc) == "type1")] <- "t1"
 colnames(sopc)[(names(sopc) == "cx")] <- "complication"
 
-aje.sopc <- sopc[, c("serial_no", "adate")]   # AJE SOPC
 sopc <- FunDmDate(sopc)
+aje.sopc <- sopc[, c("serial_no", "sopc.date")]   # AJE SOPC
 # 69716 patients 
 
 fst <- fst("diagnosis/dm_inpatient.fst")
